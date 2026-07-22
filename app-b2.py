@@ -3,10 +3,8 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-# Configuración de la página
 st.set_page_config(page_title="Entrenamiento Camilo", page_icon="💪", layout="wide")
 
-# Estilos CSS personalizados para mejorar el diseño
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
@@ -17,10 +15,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# URL de lectura pública en formato CSV
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1PgY5vU-ecWChvIaACRnWmtp-GSBNEiL3-4LDu6pecOM/export?format=csv&gid=0"
-
-# URL de escritura de Google Apps Script
 API_ESCRITURA_URL = "https://script.google.com/macros/s/AKfycybGiEGEuZSd54BGB1hDaMCF-hKvjB8Qyi5SPupd_48SNw6FapsjpgS95hnA5kp4CR1HNQ/exec"
 
 @st.cache_data(ttl=5)
@@ -38,7 +33,6 @@ if "historial_local" not in st.session_state:
 
 df_historial = st.session_state.historial_local
 
-# Base de datos de Rutinas Estructuradas
 RUTINAS = {
     "Rutina A (Pecho, Hombro, Tríceps)": [
         {"ejercicio": "Press Plano con Barra / Mancuernas", "series": 4, "reps": "8-10"},
@@ -74,7 +68,6 @@ tab_registro, tab_historial, tab_progreso = st.tabs(["📝 Registrar Entrenamien
 
 with tab_registro:
     st.subheader("Registrar Sesión del Día")
-    
     fecha_entrenamiento = st.date_input("Fecha de la sesión", datetime.now())
     rutina_seleccionada = st.selectbox("Selecciona la Rutina a Ejecutar", list(RUTINAS.keys()))
     
@@ -85,11 +78,9 @@ with tab_registro:
     
     with st.form("form_entrenamiento"):
         datos_formulario = []
-        
         for idx, ej in enumerate(ejercicios_rutina):
             st.markdown(f"#### {idx+1}. {ej['ejercicio']}")
             col1, col2, col3, col4 = st.columns(4)
-            
             with col1:
                 st.text_input("Series Planificadas", value=str(ej['series']), disabled=True, key=f"ser_plan_{idx}")
             with col2:
@@ -98,16 +89,11 @@ with tab_registro:
                 peso = st.number_input("Peso Levantado", min_value=0.0, step=0.5, format="%.1f", key=f"peso_{idx}")
             with col4:
                 unidad = st.selectbox("Unidad", ["Kg", "Lbs"], key=f"uni_{idx}")
-                
             comentario = st.text_input("Notas / Observaciones del ejercicio", placeholder="Ej: RPE 9, última serie al fallo", key=f"com_{idx}")
             
             datos_formulario.append({
-                "ejercicio": ej['ejercicio'],
-                "series": ej['series'],
-                "reps": ej['reps'],
-                "peso": peso,
-                "unidad": unidad,
-                "comentario": comentario
+                "ejercicio": ej['ejercicio'], "series": ej['series'], "reps": ej['reps'],
+                "peso": peso, "unidad": unidad, "comentario": comentario
             })
             st.markdown("---")
             
@@ -129,7 +115,6 @@ with tab_registro:
             })
             
         df_nuevos = pd.DataFrame(filas_nuevas)
-        
         exito_nube = True
         for _, row in df_nuevos.iterrows():
             payload = row.to_dict()
@@ -149,33 +134,25 @@ with tab_registro:
 
 with tab_historial:
     st.subheader("Historial de Entrenamientos Recientes")
-    
     if not df_historial.empty:
         st.dataframe(df_historial, use_container_width=True)
-        
         st.subheader("Calendario de Asistencia Habitual")
         df_historial['Fecha'] = pd.to_datetime(df_historial['Fecha'], errors='coerce')
         dias_entrenados = df_historial['Fecha'].dropna().dt.strftime('%Y-%m-%d').unique()
-        
         st.markdown(f"Has entrenado un total de **{len(dias_entrenados)} días** registrados.")
     else:
         st.info("Aún no registras entrenamientos. ¡Completa tu primera sesión en la pestaña anterior!")
 
 with tab_progreso:
     st.subheader("Análisis de Cargas y Progreso en el Tiempo")
-    
     if not df_historial.empty and len(df_historial) > 1:
         ejercicios_disponibles = df_historial['Ejercicio'].unique()
         ejercicio_grafico = st.selectbox("Selecciona un ejercicio para ver tu evolución", ejercicios_disponibles)
-        
         df_filtrado = df_historial[df_historial['Ejercicio'] == ejercicio_grafico].copy()
         df_filtrado['Fecha'] = pd.to_datetime(df_filtrado['Fecha'], errors='coerce')
         df_filtrado = df_filtrado.sort_values(by='Fecha')
-        
         if not df_filtrado.empty:
-            # Gráfico de líneas nativo de Streamlit (sin dependencias externas)
             st.line_chart(df_filtrado.set_index('Fecha')['Peso_Registrado'])
-            
             max_peso = df_filtrado['Peso_Registrado'].max()
             st.markdown(f"<div class='metric-box'>🏆 <b>Peso máximo registrado en este ejercicio:</b> {max_peso}</div>", unsafe_allow_html=True)
         else:
