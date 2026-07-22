@@ -1,73 +1,32 @@
 import streamlit as st
 import pandas as pd
-import datetime
-import calendar
 import requests
+from datetime import datetime
+import plotly.express as px
 
-# Configuración de página
-st.set_page_config(
-    page_title="Entrenamiento Personal Camilo",
-    page_icon="💪",
-    layout="centered"
-)
+# Configuración de la página
+st.set_page_config(page_title="Entrenamiento Camilo", page_icon="💪", layout="wide")
 
-# Estilo personalizado optimizado para contraste total
+# Estilos CSS personalizados para mejorar el diseño
 st.markdown("""
     <style>
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        background-color: #007BFF;
-        color: white;
-        font-weight: bold;
-        border: none;
-        padding: 10px 0px;
-    }
-    .stButton>button:hover {
-        background-color: #0056b3;
-        color: white;
-    }
-    .workout-card {
-        padding: 15px;
-        border-radius: 10px;
-        background-color: #1e293b;
-        margin-bottom: 5px;
-        border-left: 5px solid #007BFF;
-    }
-    .workout-title {
-        color: #ffffff !important;
-        font-size: 1.1rem;
-        font-weight: bold;
-        margin-bottom: 2px;
-    }
-    .workout-meta {
-        color: #94a3b8 !important;
-        font-size: 0.85rem;
-    }
-    .calendar-box {
-        display: inline-block;
-        width: 40px;
-        height: 40px;
-        line-height: 40px;
-        text-align: center;
-        margin: 4px;
-        border-radius: 5px;
-        background-color: #e9ecef;
-        font-weight: bold;
-    }
-    .badge-a { background-color: #FFC107; color: black; }
-    .badge-b { background-color: #28A745; color: white; }
-    .badge-c { background-color: #17A2B8; color: white; }
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stButton>button { width: 100%; background-color: #248a3d; color: white; font-weight: bold; border-radius: 8px; }
+    .stButton>button:hover { background-color: #1e7030; color: white; }
+    .metric-box { background-color: #1e222b; padding: 15px; border-radius: 10px; border-left: 5px solid #248a3d; margin-bottom: 15px; }
+    .rutina-header { background-color: #1e222b; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-weight: bold; text-align: center; }
+    .badge-a { background-color: #FFC107; color: black; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
+    .badge-b { background-color: #28A745; color: white; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
+    .badge-c { background-color: #17A2B8; color: white; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
 # URL de lectura pública en formato CSV
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1PgY5vU-ecWChvIaACRnWmtp-GSBNEiL3-4LDu6pecOM/export?format=csv&gid=0"
+
+# URL de escritura de Google Apps Script
 API_ESCRITURA_URL = "https://script.google.com/macros/s/AKfycybGiEGEuZSd54BGB1hDaMCF-hKvjB8Qyi5SPupd_48SNw6FapsjpgS95hnA5kp4CR1HNQ/exec"
+
 @st.cache_data(ttl=5)
 def cargar_datos_nube():
     try:
@@ -77,196 +36,192 @@ def cargar_datos_nube():
             return df
     except Exception:
         pass
+    
     # Retorno base seguro si la hoja está vacía
     return pd.DataFrame(columns=["Fecha", "Letra_Rutina", "Rutina", "Ejercicio", "Series_Objetivo", "Reps_Objetivo", "Peso_Registrado", "Unidad", "Comentarios"])
 
-# Inicializar historial en la sesión del usuario para simular persistencia inmediata mientras se sincroniza
+# Inicializar historial en la sesión del usuario
 if "historial_local" not in st.session_state:
     st.session_state.historial_local = cargar_datos_nube()
 
 df_historial = st.session_state.historial_local
 
-# Estructura de Rutinas y Cargas Iniciales Reordenada
+# Base de datos de Rutinas Estructuradas
 RUTINAS = {
-    "Entrenamiento A: Pecho, Tríceps y Hombro": {
-        "letra": "A",
-        "ejercicios": [
-            {"ejercicio": "Cardio - Caminadora", "tipo": "Tiempo", "s_obj": "1", "r_obj": "15 min", "peso_ini": 0, "unit": "min"},
-            {"ejercicio": "Chest Press (Máquina)", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 50.0, "unit": "lb"},
-            {"ejercicio": "Press de Banca con Barra", "tipo": "Peso Libre", "s_obj": "3", "r_obj": "12-15", "peso_ini": 55.0, "unit": "kg"},
-            {"ejercicio": "Press Inclinado con Mancuernas", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "12-15", "peso_ini": 18.0, "unit": "kg"},
-            {"ejercicio": "Press de Banca con Mancuernas", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "12-15", "peso_ini": 18.0, "unit": "kg"},
-            {"ejercicio": "Aperturas en Máquina Peck Fly", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 100.0, "unit": "lb"},
-            {"ejercicio": "Fondos en Paralelas (Peso Corporal)", "tipo": "Peso Corporal", "s_obj": "3", "r_obj": "Al fallo / 12", "peso_ini": 0.0, "unit": "Autocarga"},
-            {"ejercicio": "Press Militar con Mancuernas Abierta", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "12-15", "peso_ini": 14.0, "unit": "kg"},
-            {"ejercicio": "Elevacion Lateral con Mancuerna", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "12-15", "peso_ini": 10.0, "unit": "kg"},
-            {"ejercicio": "Copa de Tríceps Sentado (a dos manos)", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "12-15", "peso_ini": 20.0, "unit": "kg"},
-            {"ejercicio": "Tríceps En Polea", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 50.0, "unit": "lb"},
-            {"ejercicio": "Abdomen Flexión de Columna en Maquina Sentado", "tipo": "Máquina", "s_obj": "4", "r_obj": "12-15", "peso_ini": 115.0, "unit": "lb"}
-        ]
-    },
-    "Entrenamiento B: Espalda y Bíceps": {
-        "letra": "B",
-        "ejercicios": [
-            {"ejercicio": "Cardio - Caminadora", "tipo": "Tiempo", "s_obj": "1", "r_obj": "15 min", "peso_ini": 0, "unit": "min"},
-            {"ejercicio": "Jalón Al Pecho con Polea (lat pulldown)", "tipo": "Máquina", "s_obj": "3", "r_obj": "15-20", "peso_ini": 50.0, "unit": "lb"},
-            {"ejercicio": "Remo En Maquina Agarre Neutro", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 130.0, "unit": "lb"},
-            {"ejercicio": "Extensión Lumbar (Maquina 43)", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 180.0, "unit": "lb"},
-            {"ejercicio": "Bíceps Curl (Máquina)", "tipo": "Máquina", "s_obj": "3", "r_obj": "15-20", "peso_ini": 70.0, "unit": "lb"},
-            {"ejercicio": "Curl De Bíceps Martillo con Giro", "tipo": "Mancuerna", "s_obj": "3", "r_obj": "15-20", "peso_ini": 12.0, "unit": "kg"},
-            {"ejercicio": "Abdomen Flexión de Columna en Maquina Sentado", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 115.0, "unit": "lb"}
-        ]
-    },
-    "Entrenamiento C: Pierna": {
-        "letra": "C",
-        "ejercicios": [
-            {"ejercicio": "Cardio - Caminadora", "tipo": "Tiempo", "s_obj": "1", "r_obj": "15 min", "peso_ini": 0, "unit": "min"},
-            {"ejercicio": "Leg Press", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 220.0, "unit": "lb"},
-            {"ejercicio": "Extensión De Pierna", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 140.0, "unit": "lb"},
-            {"ejercicio": "Curl Femoral En Maquina", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 115.0, "unit": "lb"},
-            {"ejercicio": "Glúteo En Maquina", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 120.0, "unit": "lb"},
-            {"ejercicio": "Adductor Maquina Aductora", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 190.0, "unit": "lb"},
-            {"ejercicio": "Abdductor Abducción De Cadera Maquina", "tipo": "Máquina", "s_obj": "3", "r_obj": "12-15", "peso_ini": 145.0, "unit": "lb"}
-        ]
-    }
+    "Rutina A (Pecho, Hombro, Tríceps)": [
+        {"ejercicio": "Press Plano con Barra / Mancuernas", "series": 4, "reps": "8-10"},
+        {"ejercicio": "Press Inclinado con Mancuernas", "series": 3, "reps": "10-12"},
+        {"ejercicio": "Cruces en Polea / Aperturas", "series": 3, "reps": "12-15"},
+        {"ejercicio": "Press Militar (Barra o Mancuernas)", "series": 3, "reps": "8-10"},
+        {"ejercicio": "Elevaciones Laterales en Polea o Mancuerna", "series": 4, "reps": "12-15"},
+        {"ejercicio": "Extensiones de Tríceps en Polea (Copa)", "series": 3, "reps": "10-12"},
+        {"ejercicio": "Fondos en Paralelas / Fondos Banco", "series": 3, "reps": "Fallo controlado"}
+    ],
+    "Rutina B (Espalda, Bíceps, Abdomen)": [
+        {"ejercicio": "Dominadas / Jalón al Pecho", "series": 4, "reps": "8-10"},
+        {"ejercicio": "Remo con Barra o en Máquina", "series": 4, "reps": "8-10"},
+        {"ejercicio": "Remo Unilateral con Mancuerna", "series": 3, "reps": "10-12"},
+        {"ejercicio": "Pull-Over en Polea Alta", "series": 3, "reps": "12-15"},
+        {"ejercicio": "Curl de Bíceps con Barra (Z)", "series": 3, "reps": "10-12"},
+        {"ejercicio": "Curl Inclinado / Curl Martillo", "series": 3, "reps": "12-15"},
+        {"ejercicio": "Elevaciones de Piernas / Crunches", "series": 4, "reps": "15-20"}
+    ],
+    "Rutina C (Pierna Completa)": [
+        {"ejercicio": "Sentadilla Libre con Barra", "series": 4, "reps": "6-8"},
+        {"ejercicio": "Prensa Inclinada (Leg Press)", "series": 4, "reps": "10-12"},
+        {"ejercicio": "Extensiones de Cuádriceps", "series": 3, "reps": "12-15"},
+        {"ejercicio": "Peso Muerto Rumano (Mancuernas o Barra)", "series": 4, "reps": "8-10"},
+        {"ejercicio": "Curl Femoral Tumbado o Sentado", "series": 3, "reps": "10-12"},
+        {"ejercicio": "Elevación de Talones (Pantorrillas)", "series": 4, "reps": "15-20"}
+    ]
 }
 
-st.title("💪 Entrenamiento Personal Camilo")
-st.markdown("Control de sobrecarga progresiva 100% automático en la nube.")
+st.title("💪 Sistema Automatizado de Entrenamiento — Camilo")
 
-tab_calendario, tab_registro, tab_historial, tab_progreso = st.tabs(["📅 Mi Calendario", "📝 Registrar", "📜 Historial", "📈 Progreso"])
-
-with tab_calendario:
-    st.subheader("Calendario de Asistencia")
-    hoy = datetime.date.today()
-    ano = st.number_input("Año:", min_value=2026, max_value=2030, value=hoy.year)
-    mes = st.selectbox("Mes:", list(range(1, 13)), index=hoy.month - 1, format_func=lambda m: ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][m-1])
-    
-    mapeo_entrenamientos = {}
-    if not df_historial.empty and "Fecha" in df_historial.columns:
-        try:
-            df_mes = df_historial.copy()
-            df_mes['Fecha_DT'] = pd.to_datetime(df_mes['Fecha'], errors='coerce')
-            df_mes = df_mes.dropna(subset=['Fecha_DT'])
-            df_mes = df_mes[(df_mes['Fecha_DT'].dt.year == ano) & (df_mes['Fecha_DT'].dt.month == mes)]
-            for _, row in df_mes.drop_duplicates(subset=['Fecha']).iterrows():
-                mapeo_entrenamientos[str(row['Fecha']).strip()] = str(row['Letra_Rutina'])
-        except Exception:
-            pass
-
-    cal = calendar.monthcalendar(ano, mes)
-    st.markdown("|<small>Lun</small>|<small>Mar</small>|<small>Mié</small>|<small>Jue</small>|<small>Vie</small>|<small>Sáb</small>|<small>Dom</small>|", unsafe_allow_html=True)
-    st.markdown("|---|---|---|---|---|---|---|")
-    
-    for week in cal:
-        row_str = "|"
-        for day in week:
-            if day == 0:
-                row_str += " |"
-            else:
-                fecha_str = f"{ano}-{mes:02d}-{day:02d}"
-                if fecha_str in mapeo_entrenamientos:
-                    letra = mapeo_entrenamientos[fecha_str]
-                    color_class = f"badge-{letra.lower()}"
-                    row_str += f"<span class='calendar-box {color_class}'>{letra}</span> |"
-                else:
-                    row_str += f"<span class='calendar-box'>{day}</span> |"
-        st.markdown(row_str, unsafe_allow_html=True)
+# Pestañas principales
+tab_registro, tab_historial, tab_progreso = st.tabs(["📝 Registrar Entrenamiento", "📅 Historial y Calendario", "📈 Progreso Analítico"])
 
 with tab_registro:
-    st.subheader("Registrar sesión de hoy")
-    fecha_entrenamiento = st.date_input("Fecha de entrenamiento:", datetime.date.today())
-    rutina_seleccionada = st.selectbox("Selecciona la rutina hoy:", list(RUTINAS.keys()))
+    st.subheader("Registrar Sesión del Día")
     
-    letra_actual = RUTINAS[rutina_seleccionada]["letra"]
-    ejercicios_lista = RUTINAS[rutina_seleccionada]["ejercicios"]
+    fecha_entrenamiento = st.date_input("Fecha de la sesión", datetime.now())
+    rutina_seleccionada = st.selectbox("Selecciona la Rutina a Ejecutar", list(RUTINAS.keys()))
     
-    st.markdown("---")
+    letra_rutina = "A" if "Rutina A" in rutina_seleccionada else "B" if "Rutina B" in rutina_seleccionada else "C"
+    ejercicios_rutina = RUTINAS[rutina_seleccionada]
     
-    with st.form("form_entrenamiento_v3"):
-        registros_actuales = []
-        for index, item in enumerate(ejercicios_lista):
-            st.markdown(f"""<div class="workout-card">
-                <div class="workout-title">{item['ejercicio']}</div>
-                <div class="workout-meta">Objetivo: {item['s_obj']}x{item['r_obj']} ({item['tipo']})</div>
-            </div>""", unsafe_allow_html=True)
+    st.markdown(f"<div class='rutina-header'>Cargando {rutina_seleccionada}</div>", unsafe_allow_html=True)
+    
+    # Formulario dinámico para los ejercicios
+    with st.form("form_entrenamiento"):
+        datos_formulario = []
+        
+        for idx, ej in enumerate(ejercicios_rutina):
+            st.markdown(f"#### {idx+1}. {ej['ejercicio']}")
+            col1, col2, col3, col4 = st.columns(4)
             
-            ultimo_peso = item['peso_ini']
-            if not df_historial.empty and "Ejercicio" in df_historial.columns:
-                registros_previos = df_historial[df_historial['Ejercicio'] == item['ejercicio']]
-                if not registros_previos.empty:
-                    try:
-                        ultimo_peso = float(registros_previos.iloc[-1]['Peso_Registrado'])
-                    except:
-                        pass
-            
-            col1, col2 = st.columns([2, 1])
             with col1:
-                peso_ingresado = st.number_input(
-                    f"Peso levantado ({item['unit']}):", min_value=0.0, value=float(ultimo_peso), step=0.5, key=f"p_{index}"
-                )
+                st.text_input("Series Planificadas", value=str(ej['series']), disabled=True, key=f"ser_plan_{idx}")
             with col2:
-                comentario = st.text_input("Nota / Reps:", key=f"n_{index}")
+                st.text_input("Reps Planificadas", value=str(ej['reps']), disabled=True, key=f"rep_plan_{idx}")
+            with col3:
+                peso = st.number_input("Peso Levantado", min_value=0.0, step=0.5, format="%.1f", key=f"peso_{idx}")
+            with col4:
+                unidad = st.selectbox("Unidad", ["Kg", "Lbs"], key=f"uni_{idx}")
+                
+            comentario = st.text_input("Notas / Observaciones del ejercicio", placeholder="Ej: RPE 9, última serie al fallo", key=f"com_{idx}")
             
-            registros_actuales.append({
+            datos_formulario.append({
+                "ejercicio": ej['ejercicio'],
+                "series": ej['series'],
+                "reps": ej['reps'],
+                "peso": peso,
+                "unidad": unidad,
+                "comentario": comentario
+            })
+            st.markdown("---")
+            
+        boton_guardar = st.form_submit_button("💾 GUARDAR DÍA AUTOMÁTICAMENTE")
+        
+    if boton_guardar:
+        filas_nuevas = []
+        for dato in datos_formulario:
+            filas_nuevas.append({
                 "Fecha": fecha_entrenamiento.strftime("%Y-%m-%d"),
-                "Letra_Rutina": letra_actual,
+                "Letra_Rutina": letra_rutina,
                 "Rutina": rutina_seleccionada,
-                "Ejercicio": item['ejercicio'],
-                "Series_Objetivo": item['s_obj'],
-                "Reps_Objetivo": item['r_obj'],
-                "Peso_Registrado": peso_ingresado,
-                "Unidad": item['unit'],
-                "Comentarios": comentario
+                "Ejercicio": dato["ejercicio"],
+                "Series_Objetivo": dato["series"],
+                "Reps_Objetivo": dato["reps"],
+                "Peso_Registrado": dato["peso"],
+                "Unidad": dato["unidad"],
+                "Comentarios": dato["comentario"]
             })
             
-        enviar = st.form_submit_button("🏁 GUARDAR DÍA AUTOMÁTICAMENTE")
+        df_nuevos = pd.DataFrame(filas_nuevas)
         
-        if enviar:
-            df_nuevos = pd.DataFrame(registros_actuales)
-            # Acumular localmente
-            st.session_state.historial_local = pd.concat([st.session_state.historial_local, df_nuevos], ignore_index=True)
-            st.success("¡Sesión guardada y registrada de forma automática exitosamente!")
-            st.balloons()
+        # Enviar datos a Google Sheets mediante Apps Script
+        exito_nube = True
+        for _, row in df_nuevos.iterrows():
+            payload = row.to_dict()
+            try:
+                response = requests.post(API_ESCRITURA_URL, json=payload, timeout=10)
+                if response.status_code != 200:
+                    exito_nube = False
+            except Exception:
+                exito_nube = False
+                
+        if exito_nube:
+            st.success("¡Datos sincronizados correctamente con Google Sheets en la nube! 🚀")
+            # Actualizar estado local inmediatamente
+            st.session_state.historial_local = pd.concat([df_nuevos, st.session_state.historial_local], ignore_index=True)
+            st.rerun()
+        else:
+            st.warning("Se guardó localmente, pero hubo un problema al subir a Google Sheets. Revisa la URL de tu API.")
 
 with tab_historial:
-    st.subheader("Historial Completo")
+    st.subheader("Historial de Entrenamientos Recientes")
+    
     if not df_historial.empty:
-        st.dataframe(df_historial, use_container_width=True)
+        # Formatear visualmente la tabla de historial
+        df_mostrar = df_historial.copy()
+        st.dataframe(df_mostrar, use_container_width=True)
+        
+        st.subheader("Calendario de Asistencia Habitual")
+        df_historial['Fecha'] = pd.to_datetime(df_historial['Fecha'])
+        dias_entrenados = df_historial['Fecha'].dt.strftime('%Y-%m-%d').unique()
+        
+        st.markdown(f"Has entrenado un total de **{len(dias_entrenados)} días** registrados.")
+        
+        # Grid visual sencillo de los últimos 30 días
+        st.markdown("### Resumen de consistencia (Días completados)")
+        cols = st.columns(7)
+        for idx, dia in enumerate(sorted(dias_entrenados, reverse=True)[:14]):
+            with cols[idx % 7]:
+                st.markdown(f"<div class='metric-box' style='text-align:center;border-left-color:#28a745;'>📅<br><b>{dia}</b></div>", unsafe_allow_html=True)
     else:
-        st.info("Aún no tienes registros guardados en esta sesión.")
+        st.info("Aún no registras entrenamientos. ¡Completa tu primera sesión en la pestaña anterior!")
 
 with tab_progreso:
-    st.subheader("Evolución de Fuerza")
-    todos_ejercicios = []
-    for r in RUTINAS.values():
-        for e in r['ejercicios']:
-            if e['ejercicio'] not in todos_ejercicios and e['unit'] not in ['min', 'Autocarga']:
-                todos_ejercicios.append(e['ejercicio'])
-                
-    ejercicio_graficar = st.selectbox("Selecciona un ejercicio:", todos_ejercicios)
+    st.subheader("Análisis de Cargas y Progreso en el Tiempo")
     
-    peso_base = 0
-    cat_unidad = "lb"
-    for r in RUTINAS.values():
-        for e in r['ejercicios']:
-            if e['ejercicio'] == ejercicio_graficar:
-                peso_base = e['peso_ini']
-                cat_unidad = e['unit']
-                
-    datos_ejercicio = df_historial[df_historial['Ejercicio'] == ejercicio_graficar] if (not df_historial.empty and "Ejercicio" in df_historial.columns) else pd.DataFrame()
-    
-    if not datos_ejercicio.empty and datos_ejercicio.shape[0] > 0:
-        try:
-            datos_ejercicio["Peso_Registrado"] = pd.to_numeric(datos_ejercicio["Peso_Registrado"])
-            st.line_chart(data=datos_ejercicio, x="Fecha", y="Peso_Registrado")
-            st.metric(
-                label=f"Último Peso ({cat_unidad})", 
-                value=f"{datos_ejercicio.iloc[-1]['Peso_Registrado']} {cat_unidad}",
-                delta=f"{float(datos_ejercicio.iloc[-1]['Peso_Registrado']) - peso_base} {cat_unidad} desde el inicio"
+    if not df_historial.empty and len(df_historial) > 1:
+        ejercicios_disponibles = df_historial['Ejercicio'].unique()
+        ejercicio_grafico = st.selectbox("Selecciona un ejercicio para ver tu evolución", ejercicios_disponibles)
+        
+        df_filtrado = df_historial[df_historial['Ejercicio'] == ejercicio_grafico].copy()
+        df_filtrado['Fecha'] = pd.to_datetime(df_filtrado['Fecha'])
+        df_filtrado = df_filtrado.sort_values(by='Fecha')
+        
+        if not df_filtrado.empty:
+            fig = px.line(
+                df_filtrado, 
+                x='Fecha', 
+                y='Peso_Registrado', 
+                text='Peso_Registrado',
+                title=f"Evolución del Peso en: {ejercicio_grafico}",
+                labels={'Peso_Registrado': 'Peso Levantado', 'Fecha': 'Fecha de Sesión'},
+                markers=True
             )
-        except Exception:
-            st.info("Registra más días para visualizar la curva de sobrecarga progresiva.")
+            fig.update_traces(textposition="top center", line_color="#248a3d")
+            fig.update_layout(template="plotly_dark", paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Mostrar marcas máximas (PR)
+            max_peso = df_filtrado['Peso_Registrado'].max()
+            unidad_max = df_filtrado[df_filtrado['Peso_Registrado'] == max_peso]['Unidad'].values[0]
+            st.markdown(f"<div class='metric-box'>🏆 <b>Récord Personal (PR) en este ejercicio:</b> {max_peso} {unidad_max}</div>", unsafe_allow_html=True)
+        else:
+            st.info("Registra más días con este ejercicio para poder calcular la gráfica de tendencia.")
     else:
-        st.metric(label=f"Peso Inicial Configurado ({cat_unidad})", value=f"{peso_base} {cat_unidad}")
-        st.info("Registra datos de este ejercicio para ver tu gráfica evolutiva aquí.")
+        st.info("Necesitas registrar datos en múltiples días para generar los análisis de progreso.")
+
+# Botón de descarga ubicado FUERA del formulario para evitar excepciones en la API de Streamlit
+if not df_historial.empty:
+    df_descarga = df_historial.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar Historial Completo (CSV)",
+        data=df_descarga,
+        file_name=f"historial_entrenamiento_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
