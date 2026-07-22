@@ -16,7 +16,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1PgY5vU-ecWChvIaACRnWmtp-GSBNEiL3-4LDu6pecOM/export?format=csv&gid=0"
-API_ESCRITURA_URL = "https://script.google.com/macros/s/AKfycybGiEGEuZSd54BGB1hDaMCF-hKvjB8Qyi5SPupd_48SNw6FapsjpgS95hnA5kp4CR1HNQ/exec"
+API_ESCRITURA_URL = "https://script.google.com/macros/s/AKfycbyGiEGEuZSd54BGBlhDaMCF-hKvjB8Qyi5SPupd_48SNw6FapsjpgS95hnA5kp4CRlHNQ/exec"
 
 @st.cache_data(ttl=5)
 def cargar_datos_nube():
