@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
-import plotly.express as px
 
 # Configuración de la página
 st.set_page_config(page_title="Entrenamiento Camilo", page_icon="💪", layout="wide")
@@ -15,9 +14,6 @@ st.markdown("""
     .stButton>button:hover { background-color: #1e7030; color: white; }
     .metric-box { background-color: #1e222b; padding: 15px; border-radius: 10px; border-left: 5px solid #248a3d; margin-bottom: 15px; }
     .rutina-header { background-color: #1e222b; padding: 10px; border-radius: 5px; margin-bottom: 10px; font-weight: bold; text-align: center; }
-    .badge-a { background-color: #FFC107; color: black; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
-    .badge-b { background-color: #28A745; color: white; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
-    .badge-c { background-color: #17A2B8; color: white; padding: 3px 8px; border-radius: 5px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -31,16 +27,12 @@ API_ESCRITURA_URL = "https://script.google.com/macros/s/AKfycybGiEGEuZSd54BGB1hD
 def cargar_datos_nube():
     try:
         df = pd.read_csv(SHEET_CSV_URL)
-        # Si el documento tiene columnas correctas, lo retorna
         if not df.empty and "Ejercicio" in df.columns:
             return df
     except Exception:
         pass
-    
-    # Retorno base seguro si la hoja está vacía
     return pd.DataFrame(columns=["Fecha", "Letra_Rutina", "Rutina", "Ejercicio", "Series_Objetivo", "Reps_Objetivo", "Peso_Registrado", "Unidad", "Comentarios"])
 
-# Inicializar historial en la sesión del usuario
 if "historial_local" not in st.session_state:
     st.session_state.historial_local = cargar_datos_nube()
 
@@ -78,7 +70,6 @@ RUTINAS = {
 
 st.title("💪 Sistema Automatizado de Entrenamiento — Camilo")
 
-# Pestañas principales
 tab_registro, tab_historial, tab_progreso = st.tabs(["📝 Registrar Entrenamiento", "📅 Historial y Calendario", "📈 Progreso Analítico"])
 
 with tab_registro:
@@ -92,7 +83,6 @@ with tab_registro:
     
     st.markdown(f"<div class='rutina-header'>Cargando {rutina_seleccionada}</div>", unsafe_allow_html=True)
     
-    # Formulario dinámico para los ejercicios
     with st.form("form_entrenamiento"):
         datos_formulario = []
         
@@ -140,7 +130,6 @@ with tab_registro:
             
         df_nuevos = pd.DataFrame(filas_nuevas)
         
-        # Enviar datos a Google Sheets mediante Apps Script
         exito_nube = True
         for _, row in df_nuevos.iterrows():
             payload = row.to_dict()
@@ -153,7 +142,6 @@ with tab_registro:
                 
         if exito_nube:
             st.success("¡Datos sincronizados correctamente con Google Sheets en la nube! 🚀")
-            # Actualizar estado local inmediatamente
             st.session_state.historial_local = pd.concat([df_nuevos, st.session_state.historial_local], ignore_index=True)
             st.rerun()
         else:
@@ -163,22 +151,13 @@ with tab_historial:
     st.subheader("Historial de Entrenamientos Recientes")
     
     if not df_historial.empty:
-        # Formatear visualmente la tabla de historial
-        df_mostrar = df_historial.copy()
-        st.dataframe(df_mostrar, use_container_width=True)
+        st.dataframe(df_historial, use_container_width=True)
         
         st.subheader("Calendario de Asistencia Habitual")
-        df_historial['Fecha'] = pd.to_datetime(df_historial['Fecha'])
-        dias_entrenados = df_historial['Fecha'].dt.strftime('%Y-%m-%d').unique()
+        df_historial['Fecha'] = pd.to_datetime(df_historial['Fecha'], errors='coerce')
+        dias_entrenados = df_historial['Fecha'].dropna().dt.strftime('%Y-%m-%d').unique()
         
         st.markdown(f"Has entrenado un total de **{len(dias_entrenados)} días** registrados.")
-        
-        # Grid visual sencillo de los últimos 30 días
-        st.markdown("### Resumen de consistencia (Días completados)")
-        cols = st.columns(7)
-        for idx, dia in enumerate(sorted(dias_entrenados, reverse=True)[:14]):
-            with cols[idx % 7]:
-                st.markdown(f"<div class='metric-box' style='text-align:center;border-left-color:#28a745;'>📅<br><b>{dia}</b></div>", unsafe_allow_html=True)
     else:
         st.info("Aún no registras entrenamientos. ¡Completa tu primera sesión en la pestaña anterior!")
 
@@ -190,33 +169,20 @@ with tab_progreso:
         ejercicio_grafico = st.selectbox("Selecciona un ejercicio para ver tu evolución", ejercicios_disponibles)
         
         df_filtrado = df_historial[df_historial['Ejercicio'] == ejercicio_grafico].copy()
-        df_filtrado['Fecha'] = pd.to_datetime(df_filtrado['Fecha'])
+        df_filtrado['Fecha'] = pd.to_datetime(df_filtrado['Fecha'], errors='coerce')
         df_filtrado = df_filtrado.sort_values(by='Fecha')
         
         if not df_filtrado.empty:
-            fig = px.line(
-                df_filtrado, 
-                x='Fecha', 
-                y='Peso_Registrado', 
-                text='Peso_Registrado',
-                title=f"Evolución del Peso en: {ejercicio_grafico}",
-                labels={'Peso_Registrado': 'Peso Levantado', 'Fecha': 'Fecha de Sesión'},
-                markers=True
-            )
-            fig.update_traces(textposition="top center", line_color="#248a3d")
-            fig.update_layout(template="plotly_dark", paper_bgcolor="#0e1117", plot_bgcolor="#0e1117")
-            st.plotly_chart(fig, use_container_width=True)
+            # Gráfico de líneas nativo de Streamlit (sin dependencias externas)
+            st.line_chart(df_filtrado.set_index('Fecha')['Peso_Registrado'])
             
-            # Mostrar marcas máximas (PR)
             max_peso = df_filtrado['Peso_Registrado'].max()
-            unidad_max = df_filtrado[df_filtrado['Peso_Registrado'] == max_peso]['Unidad'].values[0]
-            st.markdown(f"<div class='metric-box'>🏆 <b>Récord Personal (PR) en este ejercicio:</b> {max_peso} {unidad_max}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-box'>🏆 <b>Peso máximo registrado en este ejercicio:</b> {max_peso}</div>", unsafe_allow_html=True)
         else:
-            st.info("Registra más días con este ejercicio para poder calcular la gráfica de tendencia.")
+            st.info("Registra más días con este ejercicio para poder calcular la tendencia.")
     else:
         st.info("Necesitas registrar datos en múltiples días para generar los análisis de progreso.")
 
-# Botón de descarga ubicado FUERA del formulario para evitar excepciones en la API de Streamlit
 if not df_historial.empty:
     df_descarga = df_historial.to_csv(index=False).encode('utf-8')
     st.download_button(
